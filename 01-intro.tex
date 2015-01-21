@@ -1,3 +1,100 @@
-\chapter{Test}
+\chapter{Introduction}
 
-Test test
+\tdi{Intro, motivation, goals}
+
+\chapter{Cryptographic background}
+
+\tdi{Intro}
+
+\section{Cryptographic primitives}
+
+The term \emph{cryptographic primitives} is used to refer to frequently used algorithms that serve as building blocks for more complex cryptographic protocols or systems.
+They are designed to perform a single, very specific task.
+This limitation of scope allows them to be simple, reliable and secure.
+
+Each cryptographic primitive provides some (usually quite low-level) function and gives guarantees about it's security, provided some specified requirements are satisfied by the user. 
+For example, a symmetric cipher might guarantee no attack faster than brute force exists, provided the same IV (\emph{initialization vector} -- see later) is never used twice.
+
+There are many well known cryptographic primitives that have been in use for many years and have been the targets of many researchers for just as long.
+Using them when designing any cryptographic applications makes this process less error prone, as all the designer has to do is keep the requirements satisfied instead of having to invent new primitives and then prove their security.
+
+The most common primitives, many of which will be important for us in this work, are:
+\begin{description}
+\item[One-way hash functions] such as \emph{MD5}, \emph{SHA-1} or \emph{KECCAK}. \\
+These produce a short \emph{digest} from arbitrarily long input message, however the reverse is hard to compute.
+\item[Symmetric block and stream ciphers] such as \emph{AES} or \emph{Trivium}. \\
+These encrypt and decrypt messages into \emph{ciphertext} and back using a \emph{secret key} which must be known for both steps.
+\item[Asymmetric ciphers] such as \emph{RSA}. \\ 
+These also provide encryption and decryption, however the two processes use two different keys, one of which can be publicly distributed.
+\item[Digital signatures] such as \emph{DSA}, \emph{ElGamal} or \emph{Rabin}. \\
+These can be used as a digital equivalent of signatures, proving the authorship and authenticity of a message.
+\item[And many others] such as \emph{commitment schemes}, \emph{authentication} etc. which we will not be a focus of this work.
+\end{description}
+
+\section{Hash functions}
+The most important cryptographic primitive for our purposes are \emph{hash functions}.
+These are designed to reduce a long input \emph{message} into a fixed-length \emph{digest} (short from \emph{message digest}, also called \emph{hash}).
+These functions should be easy to compute this way but infeasible\footnote{When we call a problem \emph{infeasible} we mean the computation should take exponential time, and thus is not practical for sufficient input sizes.} when going the other way -- from digest to message.
+
+Formally, hash function $h$ is a function $h: X \to Y$ where $X$ is the (unbounded) set of inputs (messages) and $h(x) \in Y = \{0, 1\}^n$ is an n-bit long output digest.
+The properties which we require this function to have are:
+
+\begin{description}
+\item[Pre-image resistance] \hfill \\
+Given a hash $h$ it is hard to find a message $m$ such that $h(m) = h$.
+\item[Second pre-image resistance] \hfill \\
+Given a message $m_1$ it is hard to find a message $m_2$ such that $h(m_1) = h(m_2)$ and $m_1 \neq m_2$.
+\item[Collision resistance] \hfill \\
+It is hard to find messages $m_1, m_2$ such that $h(m_1) = h(m_2)$ and $m_1 \neq m_2$.
+\end{description}
+
+It is easy to see that when a hash function lacks one of these properties it also lacks all the following ones.
+For example, if it's not second pre-image resistant it will also not be collision resistant.
+
+Another useful and desirable property is the \emph{avalanche effect} -- changing a small part of the input message (for example, flipping a single bit) will have a large and unpredictable effect on the output digest (for example, half of the output bits flip).
+For example, when we hash several close variations of the title of this thesis using \emph{SHA-1} we will get obviously different outputs:
+
+\begin{tabular}{r l}
+\texttt{Use of SAT Solvers in Cryptanalysis} & \texttt{2a39 79ea 37d6 4e4d 86eb} \\
+& \texttt{fa77 3bb7 d027 3445 9e8f} \\
+\texttt{Use of SAT-Solvers in Cryptanalysis} & \texttt{9cdb e658 e1a0 5454 ef0a}\\
+& \texttt{0aae 7b07 f800 99b6 a2d2} \\
+\texttt{Use of SAT-Solvers in cryptanalysis} & \texttt{83c4 3541 804d 3695 de67}\\
+& \texttt{d9e5 064d 3db4 6113 4c22} \\
+\texttt{Use of SAT Solvers in cryptanalysis} & \texttt{8753 1b8f fbf3 11dd ecf7} \\
+& \texttt{7038 51ab a9d9 95f5 0fed}
+\end{tabular}
+
+Even though every two successive lines only differ in a single character (the dash in \emph{SAT-Solvers} and the capitalization of \emph{cryptanalysis}), the hashes are obviously different even on first glance.
+This is useful for example when hash functions are used as \emph{checksums} for files published on the Internet.
+The goal is to provide a short digest of a large file to verify that the downloaded file is identical to the authors' version -- the differences can arise from either malicious tampering or accidental network transmission errors.
+After a user downloads this file they can compute the digest locally and verify that it matches the one provided.
+Even if this verification is only done as a casual comparison by the user the avalanche effect will make the differences easy to spot.
+
+\tdi{Merkle damgard - SHA1, SHA256}
+\tdi{Sponge - KECCAK}
+\tdi{Birthday attack}
+\tdi{Other hash function attacks?}
+
+\tdi{Ciphers - AES}
+\tdi{Cipher attacks}
+
+\chapter{SAT}
+
+\tdi{overview, NP complete}
+\tdi{solvers}
+\tdi{DPLL}
+\tdi{benchmarks, ...}
+\tdi{extending}
+
+\chapter{Attacks}
+
+\tdi{existing overview}
+\tdi{details of few}
+\tdi{Plans - partial preimage, ...}
+
+\chapter{Encoding}
+
+\tdi{existing tools}
+\tdi{sha1 overview}
+\tdi{goals}
