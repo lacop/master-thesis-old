@@ -1,5 +1,7 @@
 \chapter{Introduction}
 
+\tdi{CITATIONS!!!}
+
 \tdi{Intro, motivation, goals}
 
 \chapter{Cryptographic background}
@@ -71,10 +73,107 @@ The goal is to provide a short digest of a large file to verify that the downloa
 After a user downloads this file they can compute the digest locally and verify that it matches the one provided.
 Even if this verification is only done as a casual comparison by the user the avalanche effect will make the differences easy to spot.
 
-\tdi{Merkle damgard - SHA1, SHA256}
-\tdi{Sponge - KECCAK}
+\subsection{Merkle-Damg\aa rd construction}
+
+Our definition of hash function requires that it will accept inputs of arbitrary length.
+This is however harder to design than a function which operates on fixed size \emph{blocks}.
+The Merkle-Damg\aa rd construction is a way to extend this fixed size function (called \emph{compression function}) into a proper hash function while preserving collision resistance.
+
+Formally, given a compression function $f: \{0,1\}^{n+r+1} \to \{0,1\}^n$ with $n,r \ge 1$ we will create a hash function $h: \{0,1\}^* \to \{0,1\}^n$ like this: Take the input $x$ of length $l$ and split it into $t$ blocks of length $r$ each.
+\tdi{padding}
+
+Then we define $h(x) := H_{t+1}$ with (the $||$ operation represents concatenation of binary strings)
+\begin{align*}
+H_1 &= f(0^{n+1} ~||~ x_1) \\
+H_i &= f_i(H_{i-1} ~||~ 1 ~||~ x_i)
+\end{align*}
+
+The following theorem shows that this construction preserves the collision resistance of the compression function $f$:
+
+\begin{theorem}
+If the compression function $f$ is collision resistant then also the hash function $h$ constructed as above is also collision resistant.
+\end{theorem}
+\begin{proof}
+Suppose we can effectively find a collision in $h$, that is a pair $x \neq x'$ such that $h(x) = h(x')$.
+Let $|x| = \ell$ and $|x'| = \ell'$.
+Also let $t$ and $t'$ be the number of blocks after padding and splitting the inputs $x$ and $x'$ respectively.
+\\
+
+First let's consider the case when $t = t'$.
+This means that $f(H_t ~||~ 1 ~||~ x_{t+1}) = f(H'_t ~||~ 1 ~||~ x'_{t+1})$. 
+If the arguments are different we have found a collision in $f$ which is contradiction with the assumption that $f$ is collision resistant.
+If they are equal that means $x_{t+1} = x'_{t+1}$ and $f(H_{t-1} ~||~ 1 ~||~ x_t) = f(H'_{t-1} ~||~ 1 ~||~ x'_t)$.
+Again, if the arguments are different we have a collision in $f$ so we will only consider the case when they are equal.
+
+Repeating this argument $t$ times we will get $f(0^{n+1} ~||~ x_1) = f(0^{n+1} ~||~ x'_1)$.
+Again, only considering the case when the argument are equal we get that $\forall i \in \{1,\ldots,n\}: x_i = x'_i$ which implies $x = x'$ and this is a contradiction with the assumption the inputs are different.
+\\
+
+Now let's consider the case (without loss of generality) when $t < t'$.
+Using the previous argument and repeating it $t$ times we will get the equality $f(0^{n+1} ~||~ x_1) = f(H_{t'-t} ~||~ 1 ~||~ x'_{t'-t+1})$.
+The $n+1$-th bit of the inputs is $0$ on the left side and $1$ on the right side, which means we have found different inputs for $f$ that produce a collision, again a contradiction with the assumption that $f$ is collision resistant. 
+\end{proof}
+
+Many common and widely used hash functions are based on this construction, however the details of the construction can be modified.
+These include \emph{SHA-1} and the \emph{SHA-2} family (consisting of \emph{SHA-256}, \emph{SHA-512} and others).
+To provide an example of a real hash function but also to serve as a basis for further discussion and analysis we will now describe these hash functions in detail.
+
+\subsubsection{SHA-1}
+
+\emph{SHA-1}, short for \emph{Secure Hash Algorithm} is a hash function designed by the \emph{NSA} (\emph{National Security Agency}) and published in 1995.
+It produces output digest of $160$ bits, processing the input in blocks of $512$ bits.
+The first block is always the same, a constant \emph{initialization vector} (IV).
+The output of the last round of compression function (when processing the last input block) is the final output digest.
+
+\tdi{block processing/padding + IV + construction}
+
+The compression function $f$ itself is defined as follows, where $H$ are the parts of previous round's output and $M$ are the parts of
+the current input block, all $32$ bits in length:
+\[
+f(H_0 ~||~ \cdots ~||~ H_4, ~ M_0 ~||~ \cdots ~||~ M_{15}) = \dots
+\]
+\tdi{SHA-1 details}
+
+\subsubsection{SHA-2}
+\tdi{SHA2 family}
+
+\subsection{Sponge construction}
+Another approach to constructing hash functions is the \emph{sponge} construction, which is used for example by the \emph{SHA-3} family.
+The idea is to use an internal hidden stat that will be initialized by the input message and then used to produce the output digest.
+
+Let's have an input $x$ split into several blocks $x_1, \dots, x_t$, each of size $r$ bits.
+\tdi{padding}
+
+The sponge hash function consist of the following components:
+\begin{description}
+\item[State memory $S = R ~||~ C$] \hfill \\
+A vector of $b = r+c$ bits, where the first $r$ bits $R$ are used to input the message and output the digest and the remaining $c$ bits $C$ are internal and never exposed directly.
+\item[Sponge function $f$] \hfill \\
+A function $f: \{0,1\}^r\times\{0,1\}^c \to \{0,1\}^r\times\{0,1\}^c$ that permutes or otherwise transforms the state memory.
+\end{description}
+
+The hashing process then consists of two phases -- \emph{absorbing} and \emph{squeezing}.
+First, we initialize $R_0 := 0^r$ and $C_0 := 0^c$. Then we define
+\[
+R_i, C_i = f(R_{i-1} \oplus x_i,~ C_{i-1})
+\]
+
+After $t$ rounds the entire message will be \emph{absorbed} into the state $S_t = R_t ~||~ C_t$.
+
+To produce an output digest $y$ composed of $t'$ blocks $y_1, \dots, y_{t'}$ of length $r$ bits we will continue similarly:
+\[
+R_i, C_i = f(R_{i-1},~ C_{i-1})
+\]
+and the output will be $y_i = R_{t+i-1}$.
+\tdi{Sponge security claims/proofs}
+
+\subsubsection{SHA-3}
+\tdi{sha3/keccak}
+
+
+\tdi{Hash function attacks}
 \tdi{Birthday attack}
-\tdi{Other hash function attacks?}
+\tdi{Other hash function attacks / attack types}
 
 \tdi{Ciphers - AES}
 \tdi{Cipher attacks}
@@ -83,9 +182,9 @@ Even if this verification is only done as a casual comparison by the user the av
 
 \tdi{overview, NP complete}
 \tdi{solvers}
-\tdi{DPLL}
+\tdi{DPLL, CDCL}
 \tdi{benchmarks, ...}
-\tdi{extending}
+\tdi{extending, heuristics}
 
 \chapter{Attacks}
 
@@ -98,3 +197,6 @@ Even if this verification is only done as a casual comparison by the user the av
 \tdi{existing tools}
 \tdi{sha1 overview}
 \tdi{goals}
+
+
+\tdi{CITATIONS!!!}
