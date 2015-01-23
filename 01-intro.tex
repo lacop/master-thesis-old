@@ -164,15 +164,110 @@ To produce an output digest $y$ composed of $t'$ blocks $y_1, \dots, y_{t'}$ of 
 \[
 R_i, C_i = f(R_{i-1},~ C_{i-1})
 \]
-and the output will be $y_i = R_{t+i-1}$.
+and the output will \emph{squeezed} out of the state as $y_i = R_{t+i-1}$.
 \tdi{Sponge security claims/proofs}
 
 \subsubsection{SHA-3}
 \tdi{sha3/keccak}
 
+\subsection{Attacks on hash functions}
 
-\tdi{Hash function attacks}
-\tdi{Birthday attack}
+We will now describe several attacks on hash functions, starting with a simple one that demonstrates why we need a hash function that is hard to invert.
+
+\subsubsection{Collision finding for invertible hash functions}
+
+Let's assume that for a given hash function $h: X \to Y$ we can easily compute the inverse function $h^{-1}: Y \to X$.
+We can then use the following algorithm to find a collision in $h$, thus showing that $h$ is not collision resistant.
+
+\begin{algorithm}
+\begin{algorithmic}[1]
+	\While{$true$}
+		\AlgLetRandom{$x$}{$X$}
+		\AlgLet{$x'$}{$h^{-1}(h(x))$}
+		\If{$x \neq x'$}
+			\State \Return{$(x, x')$}
+		\EndIf
+	\EndWhile
+\end{algorithmic}
+\end{algorithm}
+
+The notation $x \overset{\$}{\gets} X$ means that we assign a random element from $X$ into $x$.
+If this algorithm finishes and returns a pair $x, x'$ this is guaranteed to be a collision.
+
+What is the expected number of rounds this algorithm must execute in order to find a collision?
+First, we will calculate the probability of finding of finding a collision in one iteration.
+
+Let's define an equivalence relation $\~$ over $X$ as $x \~ x' \Leftrightarrow h(x) = h(x')$. 
+This relation forms equivalence classes of $X$ representing the sets of inputs which collide:
+\[
+[x] = \{x' \in X ~|~ h(x) = h(x')\}
+\]
+
+Let's call $C$ the set of all equivalence classes of $X$, that is
+\[
+X = \bigcup_{x \in C} [x]
+\]
+
+Since there are only $|Y|$ possible outputs this means that $|C|\le|Y|$. 
+
+The probability of success for a given $x \in X$ is equal to $p_x = \frac{|[x]| - 1}{|[x]|}$, since the only way to fail is that the inverse function returns $x' = x$ but it must hold that $x' \in [x]$.
+From this we can calculate the probability of a single round succeeding as:
+
+\begin{align*}
+p_r &= \frac{1}{|X|}\sum_{x\in X} p_x = \frac{1}{|X|}\sum_{x\in X} \frac{|[x]| - 1}{|[x]|} = \frac{1}{|X|}\sum_{c\in C}\sum_{x\in c}\frac{|c| - 1}{|c|} = \\
+&= \frac{1}{|X|}\sum_{c\in C} |c| - 1 = \frac{1}{|X|}\left(\sum_{c\in C} |c| - \sum_{c\in C}1\right) = \frac{1}{|X|}\left(|X| - |C|\right)\\
+&=1 - \frac{|C|}{|X|} \ge 1 - \frac{|Y|}{|X|}
+\end{align*}
+
+Assuming finite $X$ (we can restrict it in the case of hash function with unbounded input), and assuming $|X| \gg |Y|$ -- since otherwise the hash function doesn't reduce it's input and is therefore pointless -- this value will be close to $1$.
+
+The algorithm will end after the first successful round therefore the number of rounds has a geometric distribution.
+The expected number of rounds will be
+
+\[
+E = \frac{1}{p_r} \le \frac{1}{1-\frac{|Y|}{|X|}} = \frac{|X|}{|X|-|Y|}
+\]
+
+We have shown that the algorithm will terminate after a bounded finite rounds in the expected case and will find a collision in $h$.
+It is therefore essential that the hash function is not easily invertible.
+
+\subsubsection{Birthday attack}
+Another attack that works for any hash function $h: X \to Y$ is the \emph{birthday attack}, named for the \emph{birthday paradox}.
+
+The original statement of the birthday paradox asks how many people have to be in a room for the probability of any two sharing a birthday to reach $50\%$. 
+It's easy to see that for a $100\%$ certainty we need $367$ people. However, for $50\%$ much less are required -- only $23$. Similarly, only about $70$ people are required for a $99\%$ probability.
+
+This might seem counter-intuitive at first, hence the name paradox.
+It follows from the fact that for $k$ people there are ${k \choose 2} \approx k^2$ possible pairs that can share a birthday.
+
+This leads to an collision finding birthday attack that works as follows:
+
+\begin{algorithm}
+\begin{algorithmic}[1]
+	\While{$true$}
+		\AlgLetRandom{$x_1, \cdots, x_k$}{$X$} \Comment {All $x_i$ are chosen distinct.}
+		\AlgLet{$y_i$}{$h(x_i)$}
+		\If{$\exists i\neq j: y_i = y_j$}
+			\State \Return{$(x_i, x_j)$}
+		\EndIf
+	\EndWhile
+\end{algorithmic}
+\end{algorithm}
+
+Each round takes $\bigO{k}$ time, where $k$ is a parameter to be chosen later.
+
+The probability of success for a single round can be show to be
+\[
+p_r \ge 1 - e^\frac{-k(k-1)}{2|Y|}
+\]
+\tdi{add proof / cite some source}
+
+If we can make $p_r \ge \epsilon$ where $\epsilon$ is some constant, the expected number of rounds will be constant (since it follows a geometric distribution, see previous section).
+
+It can be show that for $\epsilon = \frac{1}{2}$ we have $k = \bigO{\sqrt{|Y|}}$ and the expected number of rounds will be $2$.
+
+Therefore for a hash function with output size of $n$ bits the birthday attack can be expected to find a collision in time $\bigO{2^\frac{n}{2}}$.
+
 \tdi{Other hash function attacks / attack types}
 
 \tdi{Ciphers - AES}
