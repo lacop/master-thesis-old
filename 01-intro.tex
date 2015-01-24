@@ -273,13 +273,79 @@ Therefore for a hash function with output size of $n$ bits the birthday attack c
 \tdi{Ciphers - AES}
 \tdi{Cipher attacks}
 
-\chapter{SAT}
+\chapter{SAT Solving}
 
-\tdi{overview, NP complete}
-\tdi{solvers}
-\tdi{DPLL, CDCL}
+In this work we will be using \emph{SAT solvers} to find solutions to a complex \emph{SAT instance} describing some cryptographic primitive.
+In order to do this efficiently we need to understand how they work and how to utilize them properly.
+
+\emph{SAT solvers} are programs which search for a \emph{model} (a satisfying assignment) for an input logic formula.
+This is usually provided as a list of clauses in \emph{conjunctive normal form} (CNF) -- each clause contains a disjunction of literals and all clauses must be true for the formula to be satisfied.
+Since this is a \emph{normal form}, meaning that every formula can be written this way, it is not limiting in any way but is simpler to work with.
+
+Since \emph{SAT} is an $NP$-complete language and assuming $P \neq NP$ we can't in general do better than an exponential time algorithm, which tries every possible boolean truth assignment.
+To remember which assignments have been tried and which haven't we can implement this algorithm as a recursive backtracking, where for every input variable we try in turn both possible values.
+This will only require linear memory to implement.
+
+\section{Improving the naive algorithm}
+
+While we can't get a asymptotically faster algorithm for the worst case we can still improve on it significantly by avoiding paths which are guaranteed to lead to a \emph{conflict} -- an partial assignment that can not be extended into any satisfying one.
+
+\subsection{DPLL algorithm}
+
+First such improvement is the \emph{DPLL algorithm} (Davis-Putnam-Logemann-Loveland) which improves upon the naive backtracking algorithm by applying two rules at each step:
+
+\begin{description}
+\item[Unit propagation] \hfill \\
+We will call a clause a \emph{unit} if it only contains one unassigned literal.
+If the clause is already satisfied we can ignore it during further search.
+Otherwise it can only be satisfied by assigning the necessary value to the remaining literal.
+This means there will be no branching for this literal and thus the search time will be reduced by avoiding the obviously wrong choice.
+
+\item[Pure literal elimination] \hfill \\
+We will call a variable \emph{pure} if it only occurs in the formula with a single polarity (that is, always negated or always non-negated).
+All pure literals can be assigned the required value to make all clauses containing them true and these clauses can then also be ignored during further search.
+\end{description}
+
+These two simple rules will help to reduce the search space the algorithm has to look through and thus reduce the total running time.
+
+\subsection{Conflict-Driven Clause Learning}
+
+It can happen that after some partial assignment of variables there is already a conflict and it is not possible to extend this assignment to a satisfying one.
+However, the DPLL algorithm will continue to explore the entire search subspace.
+With \emph{conflict-driven clause learning} (CDCL) we can avoid this by the use of \emph{implication graph} and \emph{learnt clauses}.
+
+The \emph{implication graph} is a directed graph in which vertices are variables with their assignment.
+These will be marked as either \emph{decision} or \emph{forced}.
+
+At first we start with an empty implication graph and execute the DPLL algorithm.
+Every time we make an arbitrary decision (the recursive step in the algorithm) we will store add a decision vertex representing this variable and the assignment we have chosen into the graph.
+Every time either of the two rules of the DPLL algorithm forces some assignment of a variable we will add a forced vertex into the graph, with edges from every vertex that is a part of this forced choice.
+
+For example, with clause $(x \lor y \lor z)$ and with partial assignment $x=0, y=0$ the unit propagation rule will force the assignment of $z=1$.
+We will add this as a forced vertex, with edges from both $x$ and $y$.
+
+When we add an vertex to the graph for some variable but this variable is already present with the opposite assignment we have found a conflict.
+Now comes the part of CDCL which speeds up this search -- we will find all the decision vertices (variables) that are responsible for this conflict.
+Let us call them $x_1, \dots, x_k$ with assignments $v_1, \dots, v_k$.
+From this we can build a \emph{learnt clause} $L$:
+\begin{align*}
+(x_1 = v_1 \land \dots \land x_k = v_k) &\Rightarrow \text{conflict} \\
+\overline{\text{conflict}} &\Rightarrow \overline{(x_1 = v_1 \land \dots \land x_k = v_k)} \\
+\top &\Rightarrow (x_1 = \overline{v_1} \lor \dots \lor x_k = \overline{v_k}) \\
+L &:= (x_1^{(\overline{v_1})} \lor \dots \lor x_k^{(\overline{v_k})})
+\end{align*}
+
+The notation $x^{(v)}$ is used to represent $x$ if $v=1$ and $\overline{x}$ if $v=0$.
+
+We can now add this learnt clause $L$ into the list of clauses we have to satisfy, since not satisfying it is guaranteed to lead to a conflict.
+In the next step of the backtracking algorithm we will not return only a single level up from the recursion (that is, removing the assigning of just a single variable) but all the way back until we reach the first point where one of the conflicting variables was assigned a value.
+
+This method is used in all modern SAT solvers and improves their performance significantly over the naive algorithm.
+\tdi{solver heuristics}
+
+\tdi{extending}
+\tdi{overview of solvers}
 \tdi{benchmarks, ...}
-\tdi{extending, heuristics}
 
 \chapter{Attacks}
 
@@ -289,9 +355,16 @@ Therefore for a hash function with output size of $n$ bits the birthday attack c
 
 \chapter{Encoding}
 
-\tdi{existing tools}
-\tdi{sha1 overview}
+\tdi{existing tools - pretty much none}
+\tdi{sha1 code/approach overview}
 \tdi{goals}
+\tdi{methodology}
+\tdi{implementation}
+
+\chapter{Results}
+
+\tdi{measurements}
+\tdi{analysis}
 
 
 \tdi{CITATIONS!!!}
