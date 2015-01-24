@@ -1,8 +1,8 @@
-\chapter{Introduction}
-
-\tdi{CITATIONS!!!}
+\unnumberedchapter{Introduction}
 
 \tdi{Intro, motivation, goals}
+
+%\part{Theory and existing work}
 
 \chapter{Cryptographic background}
 
@@ -53,7 +53,7 @@ It is hard to find messages $m_1, m_2$ such that $h(m_1) = h(m_2)$ and $m_1 \neq
 It is easy to see that when a hash function lacks one of these properties it also lacks all the following ones.
 For example, if it's not second pre-image resistant it will also not be collision resistant.
 
-Another useful and desirable property is the \emph{avalanche effect} -- changing a small part of the input message (for example, flipping a single bit) will have a large and unpredictable effect on the output digest (for example, half of the output bits flip).
+Another useful and desirable property is the \emph{avalanche effect} \citep{katz2007introduction} -- changing a small part of the input message (for example, flipping a single bit) will have a large and unpredictable effect on the output digest (for example, half of the output bits flip).
 For example, when we hash several close variations of the title of this thesis using \emph{SHA-1} we will get obviously different outputs:
 
 \begin{tabular}{r l}
@@ -77,7 +77,7 @@ Even if this verification is only done as a casual comparison by the user the av
 
 Our definition of hash function requires that it will accept inputs of arbitrary length.
 This is however harder to design than a function which operates on fixed size \emph{blocks}.
-The Merkle-Damg\aa rd construction is a way to extend this fixed size function (called \emph{compression function}) into a proper hash function while preserving collision resistance.
+The Merkle-Damg\aa rd construction \citep{merkle1979secrecy,damgaard1990design} is a way to extend this fixed size function (called \emph{compression function}) into a proper hash function while preserving collision resistance.
 
 Formally, given a compression function $f: \{0,1\}^{n+r+1} \to \{0,1\}^n$ with $n,r \ge 1$ we will create a hash function $h: \{0,1\}^* \to \{0,1\}^n$ like this: Take the input $x$ of length $l$ and split it into $t$ blocks of length $r$ each.
 \tdi{padding}
@@ -197,7 +197,7 @@ If this algorithm finishes and returns a pair $x, x'$ this is guaranteed to be a
 What is the expected number of rounds this algorithm must execute in order to find a collision?
 First, we will calculate the probability of finding of finding a collision in one iteration.
 
-Let's define an equivalence relation $\~$ over $X$ as $x \~ x' \Leftrightarrow h(x) = h(x')$. 
+Let's define an equivalence relation $\sim$ over $X$ as $x \sim x' \Leftrightarrow h(x) = h(x')$. 
 This relation forms equivalence classes of $X$ representing the sets of inputs which collide:
 \[
 [x] = \{x' \in X ~|~ h(x) = h(x')\}
@@ -292,7 +292,7 @@ While we can't get a asymptotically faster algorithm for the worst case we can s
 
 \subsection{DPLL algorithm}
 
-First such improvement is the \emph{DPLL algorithm} (Davis-Putnam-Logemann-Loveland) which improves upon the naive backtracking algorithm by applying two rules at each step:
+First such improvement is the \emph{DPLL algorithm} (Davis-Putnam-Logemann-Loveland, \citep{davis1960computing,davis1962machine}) which improves upon the naive backtracking algorithm by applying two rules at each step:
 
 \begin{description}
 \item[Unit propagation] \hfill \\
@@ -312,7 +312,7 @@ These two simple rules will help to reduce the search space the algorithm has to
 
 It can happen that after some partial assignment of variables there is already a conflict and it is not possible to extend this assignment to a satisfying one.
 However, the DPLL algorithm will continue to explore the entire search subspace.
-With \emph{conflict-driven clause learning} (CDCL) we can avoid this by the use of \emph{implication graph} and \emph{learnt clauses}.
+With \emph{conflict-driven clause learning} (CDCL, \citep{bayardo1997using,marques1999grasp}) we can avoid this by the use of \emph{implication graph} and \emph{learnt clauses}.
 
 The \emph{implication graph} is a directed graph in which vertices are variables with their assignment.
 These will be marked as either \emph{decision} or \emph{forced}.
@@ -329,13 +329,13 @@ Now comes the part of CDCL which speeds up this search -- we will find all the d
 Let us call them $x_1, \dots, x_k$ with assignments $v_1, \dots, v_k$.
 From this we can build a \emph{learnt clause} $L$:
 \begin{align*}
-(x_1 = v_1 \land \dots \land x_k = v_k) &\Rightarrow \text{conflict} \\
-\overline{\text{conflict}} &\Rightarrow \overline{(x_1 = v_1 \land \dots \land x_k = v_k)} \\
+(x_1 = v_1 \land \dots \land x_k = v_k) &\Rightarrow \bot \\
+\overline{\bot} &\Rightarrow \overline{(x_1 = v_1 \land \dots \land x_k = v_k)} \\
 \top &\Rightarrow (x_1 = \overline{v_1} \lor \dots \lor x_k = \overline{v_k}) \\
 L &:= (x_1^{(\overline{v_1})} \lor \dots \lor x_k^{(\overline{v_k})})
 \end{align*}
 
-The notation $x^{(v)}$ is used to represent $x$ if $v=1$ and $\overline{x}$ if $v=0$.
+The notation $x^{(v)}$ is used to represent $x$ if $v=1$ and $\overline{x}$ if $v=0$. Symbols $\top$ and $\bot$ represent tautology and contradiction, respectively.
 
 We can now add this learnt clause $L$ into the list of clauses we have to satisfy, since not satisfying it is guaranteed to lead to a conflict.
 In the next step of the backtracking algorithm we will not return only a single level up from the recursion (that is, removing the assigning of just a single variable) but all the way back until we reach the first point where one of the conflicting variables was assigned a value.
@@ -366,5 +366,5 @@ This method is used in all modern SAT solvers and improves their performance sig
 \tdi{measurements}
 \tdi{analysis}
 
-
-\tdi{CITATIONS!!!}
+\unnumberedchapter{Conclusions and future work}
+\tdi{...}
