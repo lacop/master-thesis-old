@@ -135,7 +135,74 @@ f(H_0 ~||~ \cdots ~||~ H_4, ~ M_0 ~||~ \cdots ~||~ M_{15}) = \dots
 \tdi{SHA-1 details}
 
 \subsubsection{SHA-2}
-\tdi{SHA2 family}
+The \emph{SHA-2} hash function family consists of six hash functions -- their name indicating the output length -- replacing the older \emph{SHA-1} standard. The construction is quite similar, however it introduces more \emph{mixing} between the bits of $w_i$ during computation. The security flaws and attacks identified for \emph{SHA-1} which prompted the move to stronger hash functions, have not been successfully extended to the \emph{SHA-2} family.
+
+The six standardized hash functions differ only in their output length and some internal constants like number of rounds:
+\begin{description}
+\item[SHA-256] Computed with 32-bit words as described below.
+\item[SHA-512] Computed with 64-bit words, with different constants as \emph{SHA-256} but otherwise identical.
+\item[SHA-224] Truncated version of \emph{SHA-256} -- computed as \emph{SHA-256} with different initial values, then truncated to 224-bit output.
+\item[SHA-384, SHA-512/224 and SHA-512/256] Truncated versions of \emph{SHA-512}, again with different initial values.
+\end{description}
+
+We will describe \emph{SHA-256} which uses 32-bit words, input blocks of 512 bits and 64 rounds.
+For \emph{SHA-512} this is changed to 64-bit words, input blocks of 1024 bits and 80 rounds.
+The initialization constants, shift and rotate amounts are also changed.
+
+The computation begins with padding the input to a multiple of 512 bits.
+For an input message $x$ with length $|x| = n$ we will construct the padded message $x'$ as
+\[
+x' = x ~||~ 1 ~||~ 0^k ~||~ |x|_{64}
+\]
+where $|x|_{64}$ is a 64-bit big-endian integer representing the original message length and
+\[
+k = \argmin_{i \ge 0} |x| + 1 + i \equiv 448 \mod 512
+\]
+
+Thus the length of $x'$ will be $|x'| \equiv 0 \mod 512$.
+Next this message is split into $r$ blocks of 512 bits, each composed of 16 32-bit words $m_0 \dots m_{15}$.
+Each round we will compute a partial hash $H^{(i)}$ -- the hash value after processing $i$ blocks.
+The last value $H^{(r)}$ will be the output, first value $H^{(0)}$ is the initialization constant.
+This partial hash is also split into 32-bit words $H^{(i)}_0, \dots, H^{(i)}_7$.
+
+To compute $H^{(i)}$ from $H^{(i-1)}$ using the $i$-th input block we first initialize eight variables $a, b, \dots, h$ with the values of $H^{(i)}_0, \dots, H^{(i)}_7$ respectively.
+Next the following process assignment is repeated 64 times with values $q=0, \dots, 63$:
+\begin{align*}
+a &\gets h + T_1 + T_2  &b &\gets a &c &\gets b &d &\gets c \\
+e &\gets d + T_1 &f &\gets e &g &\gets f &h &\gets g
+\end{align*}
+
+After this the value of $H^{(i)}$ will be computed from $H^{(i-1)}$ by adding $a, \dots, h$ to the eight words -- that is, $H^{(i)}_0 \gets H^{(i-1)}_0 + a, \dots, H^{(i)}_7 \gets H^{(i-1)}_7 + h$.
+
+The terms $T_1$ and $T_2$ are defined as
+\begin{align*}
+T_1 &= F_1(e) + Ch(e, f, g) + K_q + W_q \\
+T_2 &= F_0(a) + Maj(a, b, c)
+\end{align*}
+where $F_0$ and $F_1$ are bit rotation functions ($x \ggg i$ denotes cyclic right shift of $x$ by $i$ bits)
+\begin{align*}
+F_0(a) &= (a \ggg 6) \oplus (a \ggg 11) \oplus (a \ggg 25) \\
+F_1(e) &= (e \ggg 2) \oplus (e \ggg 13) \oplus (a \ggg 22)
+\end{align*}
+$Ch$ and $Maj$ are boolean functions \emph{choice} and \emph{majority}
+\begin{align*}
+Ch(x,y,z) &= (x \land y) \oplus (\overline{x} \land z) \\
+Maj(x,y,z) &= (x \land y) \oplus (x \land z) \oplus (y \land z)
+\end{align*}
+$K_0, \dots, K_{63}$ are 32-bit constants\footnote{Chosen as the first 32 bits of the fractional part of cube roots of the first 64 prime numbers. This is called \emph{nothing up my sleeve numbers} and is the preferred method of choosing constants, since some specifically selected set of constants by the designer could create a weakness only the designer would know about and could exploit.}.
+
+Lastly, $W_0, \dots, W_{63}$ are computed from the $i$-th input block with words $m_0, \dots, m_{15}$ as follows ($x \gg i$ denotes (non-cyclic) right shift of $x$ by $i$ bits):
+\begin{align*}
+W_i &=
+\begin{cases}
+m_i & \text{for~} 0 \le i < 16 \\
+G_1(W_{t-2}) + W_{t-7} + G_0(W_{t-15}) + W_{t-16} & \text{for~} 16 \le i < 64
+\end{cases} \\
+G_0(x) &= (x \ggg 7) \oplus (x \ggg 18) \oplus (x \gg 3) \\
+G_1(x) &= (x \ggg 17) \oplus (x \ggg 19) \oplus (x \gg 10)
+\end{align*}
+
+The 64 rounds computing $a, \dots, f$ can be thought of as the compression function in the Merkle-Damg\aa rd construction.
 
 \subsection{Sponge construction}
 Another approach to constructing hash functions is the \emph{sponge} construction, which is used for example by the \emph{SHA-3} family.
