@@ -1,5 +1,7 @@
 \chapter{SAT encoding of cryptographic problems}
 
+\tdi{citacie novych clankov (n-ary xor, ...)}
+
 \begin{framed}
 \noindent Veci, ktoré už boli v predošlej verzií (na preddiplomový projekt) som sem nedal. Výsledný text asi využije časti z oboch ale väčšina bude nová resp. prepísaná.
 \end{framed}
@@ -14,16 +16,95 @@
 
 \chapter{Library design}
 
+A result of this work is a software library for the Python programming language designed to automate and simplify the generation of SAT instances for various cryptographic problems.
+In this section we describe the internal design and working of this library with examples of usage.
+
+\section{Related work}
+
+\tdi{tu nieco o tom ze toto uz niekto robil. zdrojaky nie su dostupne ale mozno by bolo fajn ich ziskat nech je tento popis existujucich rieseni aspon trochu zaujimavy}
+
+\section{Creating boolean circuits}
+
+To create a SAT instance for some cryptographic problem, such as pre-image attacks on hash functions, we can proceed in the following way:
+We use a special data type from our library to represent binary vectors (words).
+These can be of any length to accommodate algorithms working with different word sizes.
+Some or all bits can be set to a constant value, others will become variables and their value will be subject to computation.
+
+Next, we will implement the desired cryptographic algorithm, using these special data types instead of the built-in data types representing machine words.
+The operations performed will be stored in an acyclic directed graph (DAG) which will represent the boolean circuit for this algorithm.
+
+With this circuit we can do further modifications, such as setting some free output variables to constant values.
+Afterwards this can be exported in a format suitable for a SAT solver (for example by using the \emph{Tseitin} transformation to create a CNF instance).
+After the instance is solved by a SAT solver (or proved unsatisfiable) the library will read back the valuation of all variables for further querying by the library user.
+
 \section{Operator overloading}
 
+The core idea of this library is to make us of a feature present in many popular programming languages called \emph{operator overloading}.
+In simple terms, this allows library designers to specify custom behavior of their types when applied to various operators.
+
+A typical example would be a custom data type designed to represent complex numbers.
+In languages without operator overloading such as \emph{C} one would have to use special helper functions to perform operations on these numbers, writing code like \texttt{C = complex\_multiply(A, B)}.
+This is not only verbose and cumbersome but in case of more complicated expressions it hides the intent from the reader.
+
+Operator overloading allows us to define what should happen when the built in multiplication operator of the language is applied to our new data type, resulting in clean and readable code such as \texttt{C = A*B}.
+
+~ \\
+
+In the case of our library the use of operator overloading also provides another important benefit.
+Since the code working with the binary vector data type is identical to code working with built-in types for machine words we can reuse existing code.
+
+For example, to create a boolean circuit for some cryptographic hash function, the library user doesn't have to implement the complete algorithm from scratch.
+It is enough to take a existing, traditional implementation and modify it slightly -- the biggest (and in most cases only) change being that the initial types and values of all variables and constants are changed to the new binary vector data type.
+This makes it much easier and much less error prone to create a boolean circuit for some cryptographic algorithm.
+
 \section{Internal representation}
-\subsection{DAG}
+
+Performing any operation on one or more binary vectors will result in a new binary vector, which remembers its operands and what operation (such as boolean and, xor, modular addition or cyclic shift) was performed.
+This results in an acyclic directed graph of the computation, since some initial constants or intermediate results can be used in multiple operations, but no result can depend (directly or transitively) on itself.
+
+Depending on the type of the binary vector (constant or free input) and the operation performed, different classes of objects are used internally.
+However all of them are subtypes of the binary vector type and thanks to polymorphism they can be used interchangeably. 
 
 \section{Optimizations}
 
+Using the described methods to build the boolean circuit for some cryptographic algorithm is simple for the library user, however in some cases the result is far from optimal or efficient.
+This is due to the fact that the circuit is built step by step without any forethought and with every operation only new nodes are added to it.
+
+To overcome this problem and to improve the resulting SAT instance we can perform various optimizations on this boolean circuit before it is converted and exported.
+
+\subsection{Merging binary operators}
+
+One possible suboptimal behavior results from the way binary operators in Python (and most other popular programming languages) behave.
+Most operators are left associative, meaning that they are evaluated from the left to right.
+For example, given an expression \texttt{A \& B \& C \& D} it will be evaluated as \texttt{((A \& B) \& C) \& D}, where the \texttt{\&} operator represents boolean and.
+
+Since we are overloading these operators the same behavior applies to the creation of the boolean circuit from binary vectors.
+If we denote \texttt{N(x,y)} the result of overloaded operator \texttt{x \& y}, the above expression would result into \texttt{N(N(N(A, B), C), D)}.
+
+That means combining four inputs would produce three nodes in the boolean circuit, each with two inputs.
+However, we could easily create a version of the \emph{and} node with arbitrary arity and replace this with a single node \texttt{N(A, B, C, D)}.
+
+This not only reduces the size of the boolean circuit but also of the resulting instance. 
+The Tseitin transformation requires one variable for each node and $d+1$ clauses for $d$-ary \emph{AND} or \emph{OR} predicates.
+Given an expression like $\texttt{A}_\texttt{1} ~\&~ \cdots ~\&~ \texttt{A}_\texttt{n}$ this optimization reduced number of intermediate variables from $n-1$ to $1$ and the number of clauses from $3n-3$ to $n+1$.
+
+This optimization is implemented by traversing the graph in topological order from inputs to outputs.
+Each time a node representing either \emph{AND} or \emph{OR} operators is processed the operands are checked.
+If any of the operands is of the same type, its operands are added as operands of the current node and the operand node is discarded.
+This way the number of nodes in the graph is reduced while the arity of the current operand is increased.
+
+\tdi{constants?}
+\tdi{xor encoding}
+
 \section{SAT solvers}
+\subsection{Assigning variables}
 \subsection{Export}
 \subsection{Import}
 
 \chapter{Measurements}
 \tdi{priklady instancii, velkosti, cas, ...}
+\tdi{compare to others}
+
+...\\
+
+\tdi{nove citacie pridat do bib}
