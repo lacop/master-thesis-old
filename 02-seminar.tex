@@ -21,7 +21,9 @@ In this section we describe the internal design and working of this library with
 
 \section{Related work}
 
-\tdi{tu nieco o tom ze toto uz niekto robil. zdrojaky nie su dostupne ale mozno by bolo fajn ich ziskat nech je tento popis existujucich rieseni aspon trochu zaujimavy}
+\begin{framed}
+\noindent Tu niečo o tom, že toto už niekto robil. Zdrojáky nie sú dostupné, ale možno by bolo fajn ich získať od autorov, nech je tento popis existujúcich riešení aspoň trochu zaujímavý.
+\end{framed}
 
 \section{Creating boolean circuits}
 
@@ -93,13 +95,87 @@ Each time a node representing either \emph{AND} or \emph{OR} operators is proces
 If any of the operands is of the same type, its operands are added as operands of the current node and the operand node is discarded.
 This way the number of nodes in the graph is reduced while the arity of the current operand is increased.
 
-\tdi{constants?}
-\tdi{xor encoding}
+\subsection{Merging XOR operators}
+Another common binary operator used in cryptographic constructions is the exclusive or.
+Unlike \emph{AND} and \emph{OR} however it isn't desirable to merge multiple \emph{XOR} operators together and increase the arity.
+The reason is that when using the Tseitin transformation to convert $d$-ary exclusive or to clauses in the conjunctive normal form we need $2^d$ clauses.
+Since this number grows exponentially the linear saving in number or intermediate variables is not worth it in many cases.
+
+Therefore our library provides an optimizer that merges \emph{XOR} operators only up to a specified maximum arity.
+The choice of this value depends on many factors like the type of problem being solved or the SAT solver used.
+\begin{framed}
+\noindent Tu\citep{bard2007efficient} píšu, že 6 je optimálne. Čo som zatiaľ skúšal tak to bolo vždy pomaľšie ako binárne. Treba to vyskúšať ešte v kombinácii s ďaľšími optimalizáciami a možno na iných inštanciách alebo SAT solveroch.
+\end{framed}
+
+Another possibility is to output the \emph{XOR} expressions in special format for SAT solvers that support it (such as \emph{CryptoMiniSAT}).
+In those cases we want to merge without any arity limits, same as in the case of \emph{AND} and \emph{OR} operators, since the resulting output will be linear, not exponential, in the arity.
+
+\subsection{Other optimizations}
+In this section we briefly describe other optimizations that can be performed on the boolean circuit.
+
+\subsubsection{Eliminating pointless nodes}
+Some kinds of nodes can be eliminated from the circuit completely by instead using a different variable mapping.
+This is useful because each node in the circuit will need intermediate variables in the Tseitin transformation.
+While these might be easy for the SAT solver to satisfy, the size of the instance grows needlessly.
+
+For example, a node for cyclic rotation of the binary vector can be simply removed as long as the variables in all nodes which used this rotated vector are also shifted.
+This can be achieved simply by storing, in addition to the operands for every operator node, also the mapping between the variables of this node and the variables of the particular operand.
+The same principle can be applied to binary shifts with some minor modifications.
+
+Another example is the binary negation operator, which can be eliminated if we also keep a flag in the variable mapping indicating if the variable should be negated or not.
+
+Since shifts, rotations and negations are quite common in most cryptographic constructions using these optimizations helps reduce the size of the instance, both in number of clauses as well as variables.
+
+\subsubsection{Constant propagation}
+Many cryptographic primitives begin with several constants that are used throughout the computation.
+In cases where part of the result can be computed, such as when performing the \emph{AND} operation with one operand being constant with some zero bits, computing this result before export can also serve to eliminate pointless variables and clauses.
+
+\tdi{adders?}
+\tdi{custom operators}
 
 \section{SAT solvers}
-\subsection{Assigning variables}
+
+Interfacing with the \emph{SAT} solver is done using 	text files.
+Most available SAT solvers support input and output using text files in the \emph{DIMACS} format.
+
+In this format, variables are nonzero numbers.
+A negative number represents the negation of variable with the same absolute value.
+Individual clauses in the conjunctive normal form are then provided as lines in the file, each line listing the variables of a particular disjunction.
+
+After running a SAT solver on this file we obtain a satisfying valuation of the variables (if one exists).
+This is again a simple text file, in which each variable number from input appears once, either positive or negative.
+
+Some SAT solvers provide Python interfaces which make interacting with them simpler.
+However, in our case this doesn't provide much benefit since the user of the library does not need to deal with the SAT solver interfacing.
+Therefore we have decided against using these kinds of interfaces.
+
 \subsection{Export}
+
+Once we have a boolean circuit for some cryptographic algorithm (and after we have run optional optimizations) we need to export it in the format described above.
+
+\subsubsection{Assigning variables}
+The first step is to assign variable numbers to both all input and output variables as well as all the internal variables resulting from the Tseitin transformation.
+To do this we simply keep a variable counter and traverse the circuit.
+Each time we reach a node with unassigned variables we can use the current value of the counter as the new variable number and then increment the counter.
+
+\subsubsection{Generating clauses}
+After all variables have their numbers assigned we can proceed with generating the resulting clauses in conjunctive normal form.
+Again we traverse the circuit and write those clauses to a file one node at a time.
+Each binary vector node type (such as a constant, \emph{AND} operator, modular addition and so on) then prints the clauses that describe its value as a function of its operands.
+
+\subsection{Running the SAT solver}
+After the boolean circuit has been written to a file as a CNF instance, we can run any compatible SAT solver.
+This is done simply as executing a user-provided binary and waiting for the result.
+
+In case no satisfiable assignment of variables exists this is reported to the user.
+Otherwise we proceed with the next step which is the loading of the assignment.
+
 \subsection{Import}
+To give the library user a way to extract the resulting data easily we read the satisfiable assignment of all variables as provided by the SAT solver and store it in memory as a mapping from variable number to the truth value.
+The binary vector data type remembers the variable numbers for each of its bits.
+Therefore when queried for value of any of its bits it can determine this from the mapping.
+
+For example, in the case of pre-image attacks on hash functions this allows the user to read back the input for the hash function which hashes to the desired specified output.
 
 \chapter{Measurements}
 \tdi{priklady instancii, velkosti, cas, ...}
