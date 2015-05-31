@@ -1,20 +1,14 @@
-\chapter{SAT encoding of cryptographic problems}
+\chapter{Library design}
 
-\tdi{citacie novych clankov (n-ary xor, ...)}
-
+\begin{figure}[!t]
+\begin{minipage}[t][5cm][t]{.9\textwidth}
 \begin{framed}
 \noindent Veci, ktoré už boli v predošlej verzií (na preddiplomový projekt) som sem nedal. Výsledný text asi využije časti z oboch ale väčšina bude nová resp. prepísaná.
 \end{framed}
+\end{minipage}
+\vspace{-6cm}
+\end{figure}
 
-\tdi{Intro}
-
-\section{Typical problems}
-\subsection{Preimage attack on hashfunctions}
-
-\section{Required operations}
-\tdi{xor/and/or/..., add, shift/rotate, ...}
-
-\chapter{Library design}
 
 A result of this work is a software library for the Python programming language designed to automate and simplify the generation of SAT instances for various cryptographic problems.
 In this section we describe the internal design and working of this library with examples of usage.
@@ -130,9 +124,6 @@ Since shifts, rotations and negations are quite common in most cryptographic con
 Many cryptographic primitives begin with several constants that are used throughout the computation.
 In cases where part of the result can be computed, such as when performing the \emph{AND} operation with one operand being constant with some zero bits, computing this result before export can also serve to eliminate pointless variables and clauses.
 
-\tdi{adders?}
-\tdi{custom operators}
-
 \section{SAT solvers}
 
 Interfacing with the \emph{SAT} solver is done using 	text files.
@@ -177,10 +168,191 @@ Therefore when queried for value of any of its bits it can determine this from t
 
 For example, in the case of pre-image attacks on hash functions this allows the user to read back the input for the hash function which hashes to the desired specified output.
 
-\chapter{Measurements}
-\tdi{priklady instancii, velkosti, cas, ...}
-\tdi{compare to others}
+\chapter{Library usage}
 
-...\\
+\section{MD5 pre-image attack}
+In this section we show how to use the library created in this work to generate an instance for a pre-image attack on the MD5 hash function.
+To demonstrate the minimal changes required thanks to the library design and use of operator overloading we will first begin with a normal MD5 implementation in Python.
+We will then modify it to generate the boolean circuit and instance instead of simply hashing a provided output.
 
-\tdi{nove citacie pridat do bib}
+\subsection{Constants and round functions}
+First we will need some constants and round functions that will be common to both programs.
+\begin{minted}[mathescape,
+               linenos,
+               numbersep=5pt,
+               %gobble=2,
+               frame=lines,
+               framesep=2mm]{python}
+S = [ 7, 12, ..., 15, 21] # 64 round shift amounts
+K = [0xd76aa478, ..., 0xeb86d391] # 64 32-bit round constants
+
+# Round functions
+fs = [lambda a, b, c, d: (b & c) | (~b & d),
+      lambda a, b, c, d: (d & b) | (~d & c),
+      lambda a, b, c, d: b ^ c ^ d,
+      lambda a, b, c, d: c ^ (b | ~d)]
+gs = [lambda i: i,
+      lambda i: (5*i + 1) % 16,
+      lambda i: (3*i + 5) % 16,
+      lambda i: (7*i) % 16]
+\end{minted}
+
+\subsection{Standard MD5 implementation}
+Using these constants and functions we can write a function to compute the MD5 digest of a given message.
+We will use a simplified version that only handles messages with length up to $56$ bytes, so that after padding the message fits into a single $64$ byte chunk.
+The argument \texttt{rounds} provides a way to use a reduced round count version of MD5.
+\begin{minted}[mathescape,
+               linenos,
+               numbersep=5pt,
+               %gobble=2,
+               frame=lines,
+               framesep=2mm]{python}
+def md5(message, rounds = 64):
+    a0 = 0x67452301 # Initialization constants
+    b0 = 0xefcdab89
+    c0 = 0x98badcfe
+    d0 = 0x10325476
+    # Padding the message with zeroes and length
+    message = bytearray(message)
+    length = 8 * len(message)
+    message.append(0b10000000)
+    while len(message) != 56:
+        message.append(0)
+    message += length.to_bytes(8, byteorder='little')
+
+    # For required number of rounds run the compression function
+    A, B, C, D = a0, b0, c0, d0
+    for i in range(rounds):
+        F = fs[i//16](A, B, C, D)
+        G = gs[i//16](i)
+        mg = int.from_bytes(message[4*G:4*G+4], byteorder='little')
+        rot = leftrotate((A + F + K[i] + mg) & 0xFFFFFFFF, S[i])
+
+        A, B, C, D = D, (B+rot) & 0xFFFFFFFF, B, C
+
+    a0 = (a0 + A) & 0xFFFFFFFF
+    b0 = (b0 + B) & 0xFFFFFFFF
+    c0 = (c0 + C) & 0xFFFFFFFF
+    d0 = (d0 + D) & 0xFFFFFFFF
+    digest = 0
+    for x in [d0, c0, b0, a0]:
+        digest = digest<<32 | x
+    return digest
+\end{minted}
+
+\subsection{Generating boolean circuit}
+Now we can make some modifications to the code to make use of our library and generate a boolean circuit for the MD5 hash function.
+
+\subsubsection{Setting up}
+First of all we will need to import our library and convert all the integer constants from MD5 to constant binary vectors:
+\begin{minted}[mathescape,
+               linenos,
+               numbersep=5pt,
+               %gobble=2,
+               frame=lines,
+               framesep=2mm]{python}
+from instance import *
+Kvec = [intToVector(x) for x in K]
+\end{minted}
+
+\subsubsection{The input message}
+The structure of the message depends on its length -- it is padded by zeroes and the original length is appended to make the resulting length a multiple of 64 bytes.
+We will define a variable \texttt{mlength} that will store the original message length in bits.
+From this we can create the binary vectors for the message.
+While the first \texttt{mlength} bits will be unbounded, the rest will be set to the corresponding values from the padding.
+This ensures that any solution of the resulting instance is properly padded and that it can be used in the standard MD5 implementation to produce the same output digest.
+
+\begin{minted}[mathescape,
+               linenos,
+               numbersep=5pt,
+               %gobble=2,
+               frame=lines,
+               framesep=2mm]{python}
+mlength = 8*8 # Length of message in bits               
+Mvec = [BitVector(32) for _ in range(14)] # 14 bytes for padding
+
+# Set the padded bits to their proper value
+for i in range(mlength, 448):
+  Mvec[i // 32].bits[i % 32] = True if i == (mlength + 7) else False
+
+Mvec.append(intToVector(mlength % (2**32))) # Last two bytes for length
+Mvec.append(intToVector(mlength // (2**32))) # Creating a 16 byte chunk
+\end{minted}
+
+\subsubsection{The compression function}
+The last step is to compute the compression function over this message for a specified number of rounds.
+We can use the round functions as they have been defined for the standard MD5 implementation without any change.
+
+Only two changes occur in this code, both very minor.
+In fact, the first change even makes the new code simple -- we do not need to use functions to convert between integers and bytes or to use bit masks to limit the result of addition to 32 bits.
+This is because all our binary vector have specified endianness and length.
+
+The second change is that we had to replace the \texttt{leftrotate} function with the \texttt{CyclicLeftShift} operator from the library.
+This is because there is no operator for cyclic left shift in the Python programming language.
+Therefore it can't be overloaded to make this transition seamless.
+
+\begin{minted}[mathescape,
+               linenos,
+               numbersep=5pt,
+               %gobble=2,
+               frame=lines,
+               framesep=2mm]{python}
+a0, b0, c0, d0 = [intToVector(x) for x in [0x67452301, ..., 0x10325476]]
+A, B, C, D = a0, b0, c0, d0
+for i in range(rounds):
+    F = fs[i//16](A, B, C, D)
+    G = gs[i//16](i)
+
+    X = A + F + Kvec[i] + Mvec[G]
+    R = CyclicLeftShift(X, S[i])
+
+    A, B, C, D = D, B+R, B, C
+a0, b0, c0, d0 = a0+A, b0+B, c0+C, d0+D
+\end{minted}
+
+\subsubsection{Setting parts of the output}
+Now that we have the result of the compression function in vectors \texttt{a0}, \texttt{b0}, \texttt{c0} and \texttt{d0} we can set any output bits to a required value.
+For example, if we want an output digest that begins with a zero byte we can set
+
+\begin{minted}[mathescape,
+               linenos,
+               numbersep=5pt,
+               %gobble=2,
+               frame=lines,
+               framesep=2mm]{python}
+# Setting the 32 bits of a0, None represents unset bits
+a0.bits = [False]*8 + [None]*24
+\end{minted}
+
+\subsubsection{Generating and solving the instance}
+For the final step we need to generate the instance from this boolean circuit and use a SAT solver to find some assignment for all our variables.
+
+\begin{minted}[mathescape,
+               linenos,
+               numbersep=5pt,
+               %gobble=2,
+               frame=lines,
+               framesep=2mm]{python}
+instance = Instance()
+# List variables we want an assignment for
+instance.emit([a0, b0, c0, d0] + Mvec) 
+... # Call some SAT solver
+instance.read('instance.out')
+\end{minted}
+
+By reading the values of the input message vectors we can find a message that satisfies our output constraints.
+In this example we get the 8 byte input message, as hexadecimal bytes, \texttt{f4 20 4b a3 08 ba b2 dc}.
+We can then use any existing standard MD5 implementation to verify that the digest of this message is \texttt{00\-74\-fe\-17\-a5\-8e\-7c\-af\-1e\-42\-1f\-7e\-50\-7a\-11\-2c}, starting with a zero byte as required.
+
+\subsubsection{Conclusion}
+We can see that using this library it is easy and straightforward to create an instance for (partial) pre-image attack on MD5 given some standard MD5 implementation. 
+This is of course not specific to MD5 or even to hash functions.
+
+
+%\chapter{Measurements}
+%\tdi{priklady instancii, velkosti, cas, ...}
+%\tdi{compare to others}
+%
+%...\\
+%
+%\tdi{nove citacie pridat do bib}
